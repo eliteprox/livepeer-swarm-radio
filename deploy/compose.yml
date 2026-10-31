@@ -1,0 +1,12 @@
+services:
+  radio:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - '127.0.0.1:8787:8787'
+    command:
+      - --host=0.0.0.0
+      - --bee=${BEE_READ_URL:?set independent Bee gateway}
+      - --owner=${PUBLISHER_OWNER:?set publisher feed owner}
+      - --station=${STATION:?set station name}

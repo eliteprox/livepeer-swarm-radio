@@ -1,0 +1,24 @@
+# Publisher and Livepeer payer are independent. No batch purchase or funding happens in this client.
+input = "pulse:default" # also accepts local files, HTTPS audio, or a .pls URL
+orchestrator = "https://ai1.eliteencoder.net:8936"
+app = "livepeer-example/swarm-publish-demo"
+signer_url = "http://127.0.0.1:17936"
+offchain = false
+max_hourly_usd = 0.11
+max_wei_per_second = 14000000000 # explicit cap for converted on-chain price; re-evaluate with ETH/USD
+max_duration_seconds = 1800
+# signer_headers_file = "/private/path/payer-headers.json" # optional hosted signer auth
+publisher_key = "~/.config/livepeer-swarm-radio/publisher.key"
+publisher_password_file = "~/.config/livepeer-swarm-radio/publisher-password"
+state_path = "~/.local/state/livepeer-swarm/publisher.sqlite"
+station = "elite-radio"
+new_station = true # assert this name is new for this owner; existing local indexes are retained
+read_gateway = "https://api.gateway.ethswarm.org"
+
+[batch]
+id = "REQUIRED_EXISTING_BATCH_ID"
+depth = 20
+bucket_depth = 16
+immutable = false # MUST match the actual on-chain batch
+unused = false
+counters_file = "/absolute/path/to/exported-batch-counters.json"

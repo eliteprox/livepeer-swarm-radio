@@ -1,0 +1,20 @@
+name: swarm-local-signer
+services:
+  signer:
+    image: livepeer/go-livepeer:v0.9.3
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:17936:7936'
+    command:
+      - -remoteSigner
+      - -network=arbitrum-one-mainnet
+      - -ethUrl=${ARBITRUM_RPC_URL:?set Arbitrum RPC}
+      - -ethKeystorePath=/keystore
+      - -ethAcctAddr=${PAYER_ADDRESS:?set independent Livepeer payer address}
+      - -ethPassword=/run/secrets/payer-password
+      - -httpAddr=0.0.0.0:7936
+      - -maxPricePerUnit=${MAX_PRICE_PER_UNIT:?set price cap per second, e.g. 0.00005556USD}
+      - -remoteSignerAllowNoAuth
+    volumes:
+      - ${PAYER_KEYSTORE_DIR:?set payer keystore directory}:/keystore:ro
+      - ${PAYER_PASSWORD_FILE:?set payer password file}:/run/secrets/payer-password:ro

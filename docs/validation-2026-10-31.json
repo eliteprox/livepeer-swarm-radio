@@ -1,0 +1,130 @@
+{
+  "date": "2026-10-31",
+  "orchestrator": "https://ai1.eliteencoder.net:8936",
+  "app": "livepeer-example/swarm-publish-demo",
+  "publisher": "0x8e967011A1895516B7720903FFF0BF080219946A",
+  "livepeer_payer": "0x6CAE3C7aa09Adf84C0eD1C3A53465364cEcb7260",
+  "bee_operator": "0x2d0991c3d789079eEA883F036D854214CD7eE20F",
+  "reader": "https://api.gateway.ethswarm.org",
+  "station": "elite-radio-20261030",
+  "broadcast": "elite-radio-20261030/1793418864-2490ba9975af",
+  "source_seconds": 1784,
+  "source": "deterministic tone, frequency 440+20*(source_second modulo 60) Hz",
+  "published_segments": 892,
+  "publisher_errors": 0,
+  "publisher_queue_drops": 0,
+  "signing_round_trip_seconds": {
+    "samples": 893,
+    "median": 0.057,
+    "p95": 0.064,
+    "max": 0.201
+  },
+  "runner_media_upload_seconds": {
+    "samples": 893,
+    "median": 0.374,
+    "p95": 0.746,
+    "max": 5.327
+  },
+  "capture_to_publication_seconds": {
+    "samples": 892,
+    "median": 2.813,
+    "p95": 3.343,
+    "max": 7.961
+  },
+  "baseline_player": {
+    "latency_seconds": {
+      "samples": 845,
+      "median": 7.368,
+      "p95": 9.098,
+      "max": 10.229
+    },
+    "retrieval_seconds": {
+      "samples": 847,
+      "median": 0.349,
+      "p95": 0.627,
+      "max": 0.851
+    },
+    "first_sequence": 14,
+    "last_sequence": 891,
+    "catchup_events": 16,
+    "skipped_segments": 33,
+    "errors": 0
+  },
+  "final_player": {
+    "latency_seconds": {
+      "samples": 428,
+      "median": 7.728,
+      "p95": 9.047,
+      "max": 11.229
+    },
+    "retrieval_seconds": {
+      "samples": 428,
+      "median": 0.408,
+      "p95": 0.616,
+      "max": 0.774
+    },
+    "first_sequence": 452,
+    "last_sequence": 891,
+    "catchup_events": 6,
+    "skipped_segments": 12,
+    "errors": 0
+  },
+  "waveform_check": {
+    "received_at": 1793419104.5868752,
+    "dominant_hz": 1480.0,
+    "source_second_mod60": 52,
+    "estimated_capture_to_first_bytes_seconds": 8.176875114440918,
+    "note": "0.5s FFT window; source second quantization gives about 1s uncertainty; excludes sound-device buffering"
+  },
+  "aac": [
+    {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2
+    }
+  ],
+  "unacknowledged_feed_writes": 0,
+  "persisted_chunk_stamps": 5052,
+  "setup": {
+    "allocated_xbzz": "1.3937175649386496",
+    "operator_xdai": "0.01",
+    "publisher_transaction_gas_xdai": "0.00059353",
+    "batch": "f6b9f693fe530ef03da5f85f9947a736cec3ecb28ee35a69c328c0ab6fbe23e3"
+  },
+  "tests": {
+    "gateway_sdk": 324,
+    "swarm_and_example": 33
+  },
+  "notes": [
+    "Baseline excludes two stale samples from the previous smoke broadcast before the station pointer changed.",
+    "Final player started partway through the paid publisher run to compare station polling every five seconds.",
+    "Latency measures capture to AAC emission, excluding listener sound-device buffering.",
+    "Public gateway jitter produced catch-up skips and latency outliers; this is not a lossless streaming or latency guarantee.",
+    "Unmodified Chrisradio decoded the station but stalled in its long test: its master-derived default polling interval is slower than the two-second feed cadence.",
+    "The PLS port-86 endpoint timed out; its HTTPS equivalent is reachable.",
+    "The planned 1800-second file did not reach EOF in the paid run; EOF is covered by the offchain integration test."
+  ],
+  "endurance_status": "Ended early at user request; command process had exited with SIGTERM shortly before planned EOF.",
+  "live_source_check": {
+    "input": "https://streams.alexjones.media/infowarslive",
+    "checked_at": "2026-10-31T04:30:48.492589+00:00",
+    "aac_ffmpeg_decode_exit_code": 0,
+    "status": {
+      "owner": "0x8e967011A1895516B7720903FFF0BF080219946A",
+      "station": "elite-radio-20261030",
+      "topic": "elite-radio-20261030/1793420840-10c1562c83b3",
+      "sequence": 99,
+      "feed_index": 99,
+      "ended": false,
+      "playing": true,
+      "retrieval_failures": 0,
+      "gaps": 2,
+      "listeners": 1,
+      "slow_listeners_disconnected": 0,
+      "buffered_seconds": 0,
+      "capture_to_emit_seconds": 7.457247734069824
+    },
+    "session_limit_seconds": 1900
+  }
+}

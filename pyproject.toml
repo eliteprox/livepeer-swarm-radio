@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "livepeer-swarm-radio"
+version = "0.1.0"
+description = "Publish live audio through Livepeer to Swarm and serve independent AAC playback"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+  "livepeer-gateway @ git+https://github.com/livepeer/livepeer-python-gateway.git@2017a80c740af5fcb0fef4ee84659af9b07fb90c",
+  "livepeer-swarm-publish @ git+https://github.com/eliteprox/runner-app-examples.git@59f2d27706e60a7210cd990e9925ace4cd9ea383#subdirectory=packages/swarm-publish",
+  "aiohttp>=3.9",
+  "av>=16.1",
+  "eth-account>=0.13",
+  "eth-hash[pycryptodome]>=0.7",
+]
+
+[project.scripts]
+swarm-publish = "livepeer_swarm_radio.client:main"
+swarm-radio = "livepeer_swarm_radio.player:main"
+
+[project.urls]
+Repository = "https://github.com/eliteprox/livepeer-swarm-radio"
+
+[dependency-groups]
+dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "ruff==0.16.1"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/livepeer_swarm_radio"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]

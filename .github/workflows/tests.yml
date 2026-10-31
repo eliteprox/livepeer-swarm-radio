@@ -1,0 +1,33 @@
+name: Tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install uv==0.8.21
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: uv sync --locked
+      - run: uv run --locked ruff check src tests
+      - name: Start dedicated offchain orchestrator
+        run: |
+          docker run -d --name swarm-test --network host livepeer/go-livepeer:v0.9.3 \
+            -orchestrator -useLiveRunners -network=offchain \
+            -httpAddr=127.0.0.1:18935 -serviceAddr=https://localhost:18935 \
+            -liveRunnerAddr=https://localhost:18935 -cliAddr=127.0.0.1:17935 \
+            -orchSecret=swarm-test-only -monitor=false
+          for attempt in $(seq 1 30); do
+            if docker cp swarm-test:/root/.lpData/offchain/cert.pem /tmp/swarm-test-cert.pem; then break; fi
+            sleep 1
+          done
+      - run: uv run --locked pytest -q
+        env:
+          SSL_CERT_FILE: /tmp/swarm-test-cert.pem
+          SWARM_TEST_ORCHESTRATOR: https://localhost:18935
+      - if: always()
+        run: docker rm -f swarm-test || true

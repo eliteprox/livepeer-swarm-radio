@@ -1,0 +1,16 @@
+[Unit]
+Description=Swarm AAC radio (independent Bee retrieval)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/swarm-radio/radio.env
+ExecStart=%h/repos/livepeer-swarm-radio/.venv/bin/swarm-radio --bee ${BEE_READ_URL} --owner ${PUBLISHER_OWNER} --station ${STATION}
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
