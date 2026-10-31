@@ -89,3 +89,23 @@ Wait until the container has generated `cert.pem` before copying it; refresh the
 The live acceptance run is 30 minutes with real postage, a separately funded Livepeer payer, and an independent Bee gateway. Record signing time, publication time, retrieval time, and capture-to-player latency. Target 6–10 seconds; treat observed propagation delays and upstream buffering as measured limits, not a guaranteed SLA. Also open the station in the existing Donkey-push radio and confirm playback. Graceful file EOF publishes ENDLIST; interruption releases the Livepeer session, and the radio eventually reports a stalled stream.
 
 Measured deployment results and remaining playback limitations are recorded in [VALIDATION.md](VALIDATION.md).
+
+### Playback prefetch and pacing
+
+The radio runs playlist discovery, audio retrieval/remuxing, and playback on
+independent tasks. Two decoded AAC segments can wait in the prefetch queue, with
+one retrieval in flight. Playback primes one segment ahead (waiting at most two
+seconds), then emits according to each segment's actual duration. A delayed feed
+probe therefore does not stop delivery of audio already retrieved.
+
+Short backlogs are played in sequence. The reader only rejoins the live edge when
+its outstanding playlist duration exceeds 12 seconds, or content has fallen out
+of the available playlist. Missing media is retried six times before advancing.
+This favors continuity over immediate catch-up; sustained network outages can
+still cause gaps. The three-segment per-listener queue remains bounded, and slow
+listeners are disconnected. AAC, two-second publication segments, and station/feed
+formats are unchanged.
+
+`/status` additionally exposes `prefetched_segments`, `playback_underruns`, and
+`skipped_segments`. `capture_to_emit_seconds` is measured when audio is actually
+emitted, not when it finishes downloading; VLC can add its own buffering.

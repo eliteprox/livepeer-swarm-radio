@@ -32,6 +32,11 @@ class Radio:
         self.latency_s = None
         self.dropped_listeners = 0
         self.gaps = 0
+        self.generation = 0
+        self.playlist = None
+        self.prefetch = asyncio.Queue(maxsize=2)
+        self.underruns = 0
+        self.skipped_segments = 0
 
     def subscribe(self):
         queue = asyncio.Queue(maxsize=3)
@@ -52,9 +57,9 @@ class Radio:
             else:
                 queue.put_nowait(audio)
 
-    async def poll(self):
-        poll_started = time.monotonic()
-        if self.topic is None or poll_started >= self.next_pointer_check:
+    async def refresh(self):
+        """Discover authenticated playlists independently of audio deadlines."""
+        if self.topic is None or time.monotonic() >= self.next_pointer_check:
             pointer = await self.bee.latest_feed(
                 self.owner, self.station, floor=self.pointer_index
             )
@@ -69,48 +74,43 @@ class Radio:
                         raise ValueError(
                             "station master has no supported source rendition"
                         )
+                    self.generation += 1
                     self.topic, self.sequence, self.feed_index = topic, -1, 0
                     self.init_ref, self.init, self.ended = None, None, False
+                    self.playlist = None
                     self.missing.clear()
+                    while not self.prefetch.empty():
+                        self.prefetch.get_nowait()
                 self.pointer_index = index
             self.next_pointer_check = time.monotonic() + 5
-        if self.topic is None:
-            return 0.5
-        latest = await self.bee.latest_feed(
-            self.owner, self.topic + "#source", floor=self.feed_index
-        )
-        if not latest:
-            return 0.5
-        self.feed_index, body = latest
-        init_ref, entries, ended = parse_media(body.decode())
-        remaining = [e for e in entries if e["sequence"] > self.sequence]
-        if not remaining:
-            if ended and not self.ended:
-                self.ended = True
-                self.emit(None)
-            return 0.5
-        # Start near live; after falling behind rejoin the latest two segments.
-        if self.sequence < 0 or len(remaining) > 3:
-            remaining = remaining[-2:]
-        entry = remaining[0]
+        if self.topic is not None:
+            latest = await self.bee.latest_feed(
+                self.owner, self.topic + "#source", floor=self.feed_index
+            )
+            if latest:
+                index, body = latest
+                playlist = parse_media(body.decode())
+                self.feed_index, self.playlist = index, playlist
+
+    async def retrieve(self, init_ref, entry):
         started = time.monotonic()
         if init_ref != self.init_ref:
             init = await self.bee.read_bytes(init_ref, limit=65536)
             if init is None:
-                return 0.5
+                return None
             self.init_ref, self.init = init_ref, init
+        init = self.init
         fragment = await self.bee.read_bytes(entry["ref"], limit=256 * 1024)
         if fragment is None:
-            self.failures += 1
-            count = self.missing.get(entry["sequence"], 0) + 1
-            self.missing = {entry["sequence"]: count}
-            if count >= 6:
-                self.sequence = entry["sequence"]
-                self.gaps += 1
-            return 0.5
-        audio = await asyncio.to_thread(remux_adts, self.init, fragment)
+            return None
+        audio = await asyncio.to_thread(remux_adts, init, fragment)
+        return audio, time.monotonic() - started
+
+    def deliver(self, entry, result):
+        audio, retrieval = result
         if self.sequence >= 0 and entry["sequence"] != self.sequence + 1:
             self.gaps += 1
+            self.skipped_segments += max(0, entry["sequence"] - self.sequence - 1)
         self.sequence = entry["sequence"]
         self.last_audio = time.time()
         self.latency_s = (
@@ -122,20 +122,115 @@ class Radio:
         log.info(
             "play sequence=%s retrieval_s=%.3f capture_to_emit_s=%s",
             self.sequence,
-            time.monotonic() - started,
+            retrieval,
             self.latency_s,
         )
-        return max(0.01, entry["duration"] - (time.monotonic() - poll_started))
 
-    async def run(self):
+    async def poll(self):
+        """Single-step helper; the running service uses the independent stages below."""
+        started = time.monotonic()
+        await self.refresh()
+        if self.playlist is None:
+            return 0.5
+        init_ref, entries, ended = self.playlist
+        remaining = [e for e in entries if e["sequence"] > self.sequence]
+        if not remaining:
+            if ended and not self.ended:
+                self.ended = True
+                self.emit(None)
+            return 0.5
+        if self.sequence < 0:
+            remaining = remaining[-2:]
+        entry = remaining[0]
+        result = await self.retrieve(init_ref, entry)
+        if result is not None:
+            self.deliver(entry, result)
+        return max(0.01, entry["duration"] - (time.monotonic() - started))
+
+    async def discover(self):
         while True:
             try:
-                delay = await self.poll()
+                await self.refresh()
             except Exception:
                 self.failures += 1
-                log.exception("Swarm radio retrieval failed")
-                delay = 0.5
-            await asyncio.sleep(delay)
+                log.exception("Swarm playlist discovery failed")
+            await asyncio.sleep(0.25)
+
+    async def fetch(self):
+        generation, cursor, ended_sent = -1, -1, False
+        while True:
+            if generation != self.generation:
+                generation, cursor, ended_sent = self.generation, -1, False
+            if self.playlist is None:
+                await asyncio.sleep(0.05)
+                continue
+            init_ref, entries, ended = self.playlist
+            remaining = [e for e in entries if e["sequence"] > cursor]
+            if not remaining:
+                if ended and not ended_sent:
+                    await self.prefetch.put((generation, None, None))
+                    ended_sent = True
+                await asyncio.sleep(0.05)
+                continue
+            if cursor < 0:
+                remaining = remaining[-2:]
+            # Tolerate short jitter; only abandon content after >12s backlog.
+            elif sum(e["duration"] for e in remaining) > 12:
+                log.warning("rejoining live edge after >12s retrieval backlog")
+                remaining = remaining[-2:]
+            entry = remaining[0]
+            try:
+                result = await self.retrieve(init_ref, entry)
+            except Exception:
+                result = None
+                log.exception("Swarm audio retrieval failed")
+            if generation != self.generation:
+                continue
+            if result is None:
+                self.failures += 1
+                count = self.missing.get(entry["sequence"], 0) + 1
+                self.missing = {entry["sequence"]: count}
+                if count >= 6:
+                    cursor = entry["sequence"]
+                await asyncio.sleep(0.25)
+                continue
+            self.missing.clear()
+            await self.prefetch.put((generation, entry, result))
+            cursor = entry["sequence"]
+
+    async def play(self):
+        deadline, generation = None, -1
+        while True:
+            if deadline is not None:
+                await asyncio.sleep(max(0, deadline - time.monotonic()))
+                if self.prefetch.empty():
+                    self.underruns += 1
+            item_generation, entry, result = await self.prefetch.get()
+            if item_generation != self.generation:
+                continue
+            if generation != item_generation:
+                generation, deadline = item_generation, None
+            if entry is None:
+                self.ended = True
+                self.emit(None)
+                deadline = None
+                continue
+            # Prime one segment ahead, with a finite wait for sparse/short streams.
+            if deadline is None:
+                until = time.monotonic() + 2
+                while self.prefetch.empty() and time.monotonic() < until:
+                    await asyncio.sleep(0.02)
+                if item_generation != self.generation:
+                    continue
+            self.deliver(entry, result)
+            # Reset after a real stall: never burst several delayed segments at VLC.
+            deadline = max(deadline or 0, time.monotonic()) + entry["duration"]
+
+    async def run(self):
+        async with asyncio.TaskGroup() as tasks:
+            tasks.create_task(self.discover())
+            tasks.create_task(self.fetch())
+            tasks.create_task(self.play())
 
     def status(self):
         return {
@@ -148,6 +243,9 @@ class Radio:
             "playing": time.time() - self.last_audio < 10 and not self.ended,
             "retrieval_failures": self.failures,
             "gaps": self.gaps,
+            "skipped_segments": self.skipped_segments,
+            "playback_underruns": self.underruns,
+            "prefetched_segments": self.prefetch.qsize(),
             "listeners": len(self.listeners),
             "slow_listeners_disconnected": self.dropped_listeners,
             "buffered_seconds": max((q.qsize() * 2 for q in self.listeners), default=0),
