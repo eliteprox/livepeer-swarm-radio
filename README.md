@@ -37,9 +37,9 @@ ffplay -nodisp http://127.0.0.1:8787/stream.aac
 
 - **Publisher:** signs postage and feed updates locally; its postage signatures must match the batch owner.
 - **Livepeer payer:** uses an independently configured remote signer for payment tickets.
-- **Bee operator:** currently has its own funded node identity and chequebook.
+- **Bee operator:** the orchestrator operates and funds its own node identity and chequebook; upload bandwidth is included in the advertised capability price.
 
-[Postage pays for storage](https://docs.ethswarm.org/docs/concepts/incentives/overview/); the current Bee setup also funds its separate network-bandwidth settlement mechanism. Reusing or sponsoring that operator funding with a gateway user's wallet is future work, not implemented by this example. Publishing does not buy postage or transfer BZZ. The runner receives no publisher private key.
+[Postage pays for storage](https://docs.ethswarm.org/docs/concepts/incentives/overview/); the current Bee setup also funds its separate network-bandwidth settlement mechanism. Users do not need to create or fund a Bee wallet. The operator manages bandwidth funding; the current $0.10/hour service price is introductory and its margin has not yet been validated. Independent playback gateways handle retrieval costs under their own terms. Publishing does not buy postage or transfer BZZ. The runner receives no publisher private key.
 
 Publisher counters, pending signed feeds, confirmed indexes, and broadcast state are committed to local SQLite. Keep exclusive ownership of a batch's signing state. Never restart a used batch with empty counters, and never restore a stale state snapshot after signing more stamps. Private credentials and runtime state belong outside this repository.
 
