@@ -93,12 +93,15 @@ Measured deployment results and remaining playback limitations are recorded in [
 ### Playback prefetch and pacing
 
 The radio runs playlist discovery, audio retrieval/remuxing, and playback on
-independent tasks. Two decoded AAC segments can wait in the prefetch queue, with
+independent tasks. Two remuxed AAC segments can wait in the prefetch queue, with
 one retrieval in flight. Playback primes one segment ahead (waiting at most two
 seconds), then emits according to each segment's actual duration. A delayed feed
 probe therefore does not stop delivery of audio already retrieved.
 
-Short backlogs are played in sequence. The reader only rejoins the live edge when
+Live startup waits for a playlist whose newest capture timestamp is at most eight
+seconds old, then starts with its newest segment. This assumes capture and playback
+host clocks are synchronized. Finished broadcasts can still play their last two
+segments. Short backlogs are played in sequence. The reader only rejoins the live edge when
 its outstanding playlist duration exceeds 12 seconds, or content has fallen out
 of the available playlist. Missing media is retried six times before advancing.
 This favors continuity over immediate catch-up; sustained network outages can

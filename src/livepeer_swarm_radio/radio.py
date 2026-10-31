@@ -173,7 +173,14 @@ class Radio:
                 await asyncio.sleep(0.05)
                 continue
             if cursor < 0:
-                remaining = remaining[-2:]
+                # A cold Bee can expose an authenticated but stale frontier.
+                # Wait for recent live metadata instead of buffering obsolete audio.
+                newest = remaining[-1]
+                captured = newest["captured_at"]
+                if not ended and captured is not None and time.time() - captured > 8:
+                    await asyncio.sleep(0.1)
+                    continue
+                remaining = remaining[-2:] if ended else remaining[-1:]
             # Tolerate short jitter; only abandon content after >12s backlog.
             elif sum(e["duration"] for e in remaining) > 12:
                 log.warning("rejoining live edge after >12s retrieval backlog")

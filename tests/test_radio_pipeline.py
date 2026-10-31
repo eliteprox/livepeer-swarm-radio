@@ -41,7 +41,7 @@ async def test_prefetch_keeps_order_during_discovery_stall_without_short_backlog
             while (audio := await listener.get()) is not None:
                 received.append(audio)
                 timestamps.append(time.monotonic())
-        assert received == [str(i).encode() for i in range(6)]
+        assert received == [str(i).encode() for i in range(1, 6)]
         assert radio.gaps == 0
         assert radio.prefetch.maxsize == 2
         assert min(b - a for a, b in zip(timestamps, timestamps[1:])) >= 0.065
@@ -96,3 +96,26 @@ async def test_cancellation_stops_all_three_stages():
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
     assert stopped == {"discovery", "fetch", "playback"}
+
+
+@pytest.mark.asyncio
+async def test_cold_start_waits_for_fresh_live_playlist():
+    class FakeRadio(Radio):
+        async def retrieve(self, init_ref, entry):
+            return str(entry["sequence"]).encode(), 0
+
+    radio = FakeRadio(None, "owner", "station")
+    stale = entries(1)
+    stale[0]["captured_at"] -= 30
+    radio.playlist = ("init", stale, False)
+    task = asyncio.create_task(radio.fetch())
+    try:
+        await asyncio.sleep(0.15)
+        assert radio.prefetch.empty()
+        radio.playlist = ("init", entries(3), False)
+        async with asyncio.timeout(1):
+            _, entry, _ = await radio.prefetch.get()
+        assert entry["sequence"] == 2
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
